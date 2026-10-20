@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technician Training Sign-offs</title>
+<style>
+  /* Reads the Google Sheet live in the browser. To point at a different sheet, change SHEET_ID and SHEET_GID in the script below. */
+  :root {
+    --page: #26282C; --card: #2F3236; --shell: #2A2C30; --line: #3E4147; --ink: #ECEDEF; --ink-2: #A9ACB2; --ink-3: #7F838A;
+    --deep: #1B1C1F; --accent: #9A8CF9; --hover: #383B40; --bad: #F5A3AE;
+    --yes-bg: #1F4630; --yes-fg: #8EE6AE; --focus-bg: #4A3A8C; --focus-fg: #E4DEFF;
+    --work-bg: #463818; --work-fg: #F2C66B; --no-bg: #4A262C; --no-fg: #F5A3AE;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--ink); }
+  body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: clamp(12px, 3vw, 32px) max(16px, 3vw); }
+  .wrap { max-width: 1800px; margin: 0 auto; display: grid; gap: 16px; }
+  .top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+  .title { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--deep); border: 1px solid var(--line); display: grid; place-items: center; flex: none; }
+  h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+  .sub { margin: 2px 0 0; font-size: 12px; color: var(--ink-2); }
+  .sync { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #9BF0C4; }
+  .dot.err { background: var(--bad); }
+  .btn { font: inherit; font-size: 12px; color: var(--ink); background: var(--deep); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; cursor: pointer; }
+  .btn:hover { background: var(--hover); }
+  .btn:focus-visible, .tag:focus-visible, .seg button:focus-visible, .search:focus-visible, .clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); }
+  .bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; gap: 4px; background: var(--shell); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .seg button { font: inherit; font-size: 12px; padding: 5px 10px; border: 0; border-radius: 6px; color: var(--ink-2); background: transparent; cursor: pointer; white-space: nowrap; }
+  .seg button[aria-pressed="true"] { background: var(--deep); color: #fff; }
+  .search { font: inherit; font-size: 12px; padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--shell); color: var(--ink); width: 13rem; max-width: 100%; }
+  .tag { display: inline-flex; flex-direction: column; gap: 1px; padding: 4px 8px; border-radius: 7px; font-weight: 600; line-height: 1.3; white-space: nowrap; font-size: 12px; }
+  .tag .when { font-weight: 400; font-size: 10.5px; opacity: .85; font-variant-numeric: tabular-nums; }
+  .s-yes { background: var(--yes-bg); color: var(--yes-fg); }
+  .s-focus { background: var(--focus-bg); color: var(--focus-fg); }
+  .s-work { background: var(--work-bg); color: var(--work-fg); }
+  .s-no { background: var(--no-bg); color: var(--no-fg); }
+  .legend button.tag { flex-direction: row; align-items: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; transition: opacity .15s, border-color .15s; }
+  .legend button.tag:hover { filter: brightness(1.1); }
+  .legend.active button.tag[aria-pressed="false"] { opacity: .45; }
+  .legend button.tag[aria-pressed="true"] { border-color: currentColor; }
+  .legend button.tag[aria-pressed="true"]::before { content: "✓"; font-size: 11px; }
+  .clear { font: inherit; font-size: 12px; color: var(--ink-2); background: none; border: 0; padding: 6px 8px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .scroll { overflow: auto; max-height: 78vh; border: 1px solid var(--line); border-radius: 10px; min-height: 200px; }
+  table { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: 100%; }
+  th { font-weight: 600; color: var(--ink-2); background: var(--shell); text-align: left; }
+  thead th { position: sticky; top: 0; z-index: 2; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; line-height: 1.25; min-width: 92px; max-width: 120px; }
+  .name { position: sticky; left: 0; z-index: 1; white-space: nowrap; padding: 8px 16px 8px 14px; border-right: 1px solid var(--line); }
+  thead th.name { z-index: 3; min-width: 0; max-width: none; }
+  tbody .name { background: var(--card); color: var(--ink); font-weight: 600; font-size: 13px; }
+  td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:hover td { background: var(--hover); }
+  td.dim .tag { opacity: .18; }
+  .msg { padding: 28px 14px; color: var(--ink-2); font-size: 13px; text-align: center; }
+  .skel td { height: 38px; }
+  .skel td span { display: block; height: 14px; border-radius: 6px; background: var(--hover); }
+  @media (prefers-reduced-motion: no-preference) { .skel td span { animation: pulse 1.2s ease-in-out infinite alternate; } @keyframes pulse { to { opacity: .4; } } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <span class="logo"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div>
+        <h1>Technician training sign-offs</h1>
+        <p class="sub" id="counts">Loading…</p>
+      </div>
+    </div>
+    <div class="tools">
+      <span class="sync"><span class="dot" id="dot"></span><span id="synced">Connecting to the sheet…</span></span>
+      <button type="button" class="btn" id="refresh">Refresh</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="bar">
+      <div class="legend" id="legend" role="group" aria-label="Filter by status">
+        <button type="button" class="tag s-yes" data-status="Yes" aria-pressed="false">Yes</button>
+        <button type="button" class="tag s-focus" data-status="Focused Training" aria-pressed="false">Focused Training</button>
+        <button type="button" class="tag s-work" data-status="Working On It" aria-pressed="false">Working On It</button>
+        <button type="button" class="tag s-no" data-status="No" aria-pressed="false">No</button>
+        <button type="button" class="clear" id="clear" hidden>Clear</button>
+      </div>
+      <div class="tools">
+        <div class="seg" role="group" aria-label="Show technicians">
+          <button type="button" data-show="all" aria-pressed="true">All</button>
+          <button type="button" data-show="open" aria-pressed="false">Has open items</button>
+          <button type="button" data-show="done" aria-pressed="false">All signed off</button>
+        </div>
+        <input id="search" class="search" type="search" placeholder="Search technicians" aria-label="Search technicians">
+      </div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr id="head"></tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ---- Settings -------------------------------------------------------------
+  const SHEET_ID = '1jhNizhqfYXhNKebW-sBnfibtNo6Et0aL4OKR_2jGHIM';
+  const SHEET_GID = '1181500865';
+  const REFRESH_MINUTES = 5;              // reload the sheet this often while the page is open
+  const SKIP_COLUMNS = ['monday item id'];  // sheet columns not shown
+  // ---------------------------------------------------------------------------
+
+  const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${SHEET_GID}`;
+  const STATUS = { 'yes': 'Yes', 'focused training': 'Focused Training', 'working on it': 'Working On It', 'no': 'No' };
+  const CLS = { 'Yes': 's-yes', 'Focused Training': 's-focus', 'Working On It': 's-work', 'No': 's-no' };
+  const $ = (id) => document.getElementById(id);
+  const head = $('head'), body = $('body'), search = $('search'), legend = $('legend'), clear = $('clear');
+  const statusBtns = [...legend.querySelectorAll('button[data-status]')];
+  const showBtns = [...document.querySelectorAll('.seg button')];
+  const picked = new Set();
+  let show = 'all';
+  let data = null; // { brands: [...], rows: [{ name, cells: { brand: {status, when} } }] }
+
+  // RFC 4180 CSV parser (handles quotes, commas and line breaks inside cells).
+  function parseCSV(text) {
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      } else cell += c;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  // A cell's first non-empty line is its current value: "Status" or "Status — M/D/YYYY H:MM AM".
+  function parseCell(raw) {
+    const line = String(raw || '').split(/\r?\n/).map((l) => l.trim()).find(Boolean);
+    if (!line) return null;
+    const [s, rest] = line.split(/\s+—\s+/);
+    const status = STATUS[s.trim().toLowerCase()] || s.trim();
+    const m = rest && rest.match(/^(\d{1,2}\/\d{1,2}\/\d{4})/);
+    return { status, when: m ? m[1] : '' };
+  }
+
+  function shape(table) {
+    const header = table[0].map((h) => h.trim());
+    const brandIdx = header.map((h, i) => i).filter((i) => i > 0 && header[i] && !SKIP_COLUMNS.includes(header[i].toLowerCase()));
+    const rows = table.slice(1).filter((r) => r[0] && r[0].trim()).map((r) => {
+      const cells = {};
+      brandIdx.forEach((i) => { const v = parseCell(r[i]); if (v) cells[header[i]] = v; });
+      return { name: r[0].trim(), cells };
+    });
+    return { brands: brandIdx.map((i) => header[i]), rows };
+  }
+
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  function tag(v) {
+    const t = el('span', 'tag ' + (CLS[v.status] || 's-no'), v.status);
+    if (v.when) t.append(el('span', 'when', v.when));
+    return t;
+  }
+
+  function message(text) {
+    const tr = el('tr'); const td = el('td', 'msg', text);
+    td.colSpan = (data ? data.brands.length : 16) + 1; tr.append(td); body.replaceChildren(tr);
+  }
+
+  function skeleton() {
+    head.replaceChildren(el('th', 'name', 'Technician'));
+    body.replaceChildren(...Array.from({ length: 8 }, () => {
+      const tr = el('tr', 'skel'); const td = el('td'); td.colSpan = 17; td.append(el('span')); tr.append(td); return tr;
+    }));
+  }
+
+  function draw() {
+    if (!data) return;
+    const { brands, rows } = data;
+    head.replaceChildren(el('th', 'name', 'Technician'), ...brands.map((b) => el('th', null, b)));
+    const q = search.value.trim().toLowerCase();
+    const list = rows.filter((r) => {
+      if (q && !r.name.toLowerCase().includes(q)) return false;
+      const open = brands.some((b) => !r.cells[b] || r.cells[b].status !== 'Yes');
+      if (picked.size && !brands.some((b) => r.cells[b] && picked.has(r.cells[b].status))) return false;
+      return show === 'all' || (show === 'open' ? open : !open);
+    });
+    if (!list.length) return message('No technicians match these filters.');
+    body.replaceChildren(...list.map((r) => {
+      const tr = el('tr');
+      tr.append(el('td', 'name', r.name));
+      brands.forEach((b) => {
+        const td = el('td'); const v = r.cells[b];
+        if (v) td.append(tag(v));
+        if (picked.size && !(v && picked.has(v.status))) td.className = 'dim';
+        tr.append(td);
+      });
+      return tr;
+    }));
+  }
+
+  async function load() {
+    $('refresh').disabled = true;
+    try {
+      const res = await fetch(URL + '&cachebust=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('The sheet answered ' + res.status);
+      const text = await res.text();
+      if (!/^"?Technician"?/.test(text)) throw new Error('The sheet is not shared as "Anyone with the link can view"');
+      data = shape(parseCSV(text));
+      $('counts').textContent = `${data.rows.length} technicians · ${data.brands.length} brands`;
+      $('synced').textContent = 'Live from Google Sheets · updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      $('dot').classList.remove('err');
+      draw();
+    } catch (err) {
+      $('dot').classList.add('err');
+      $('synced').textContent = "Couldn't reach the sheet";
+      if (!data) message("Couldn't load the Google Sheet. Check that it's shared as \"Anyone with the link can view\", then press Refresh. (" + err.message + ')');
+    } finally {
+      $('refresh').disabled = false;
+    }
+  }
+
+  statusBtns.forEach((b) => b.addEventListener('click', () => {
+    const s = b.dataset.status;
+    picked.has(s) ? picked.delete(s) : picked.add(s);
+    statusBtns.forEach((x) => x.setAttribute('aria-pressed', String(picked.has(x.dataset.status))));
+    legend.classList.toggle('active', picked.size > 0);
+    clear.hidden = picked.size === 0;
+    draw();
+  }));
+  clear.addEventListener('click', () => {
+    picked.clear();
+    statusBtns.forEach((x) => x.setAttribute('aria-pressed', 'false'));
+    legend.classList.remove('active'); clear.hidden = true; draw();
+  });
+  showBtns.forEach((b) => b.addEventListener('click', () => {
+    show = b.dataset.show;
+    showBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    draw();
+  }));
+  search.addEventListener('input', draw);
+  $('refresh').addEventListener('click', load);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  setInterval(() => { if (!document.hidden) load(); }, REFRESH_MINUTES * 60 * 1000);
+
+  skeleton();
+  load();
+})();
+</script>
+</body>
+</html>
